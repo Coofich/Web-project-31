@@ -10,8 +10,21 @@ const MAX_ACTIVE_TASKS = 2;
 const MAX_TASKS_PER_USER = 20;
 let activeTasksCount = 0;
 
-function getWaitTime(queuePos, complexity) {
-    return Math.round((queuePos * (complexity * 50)) / 1000);
+const FILTER_WEIGHTS = {
+    "Інверсія та корекція кольору": 0.5,
+    "Розмиття (Gaussian Blur)": 1.0,
+    "Рендеринг тривимірної сцени": 1.5,
+    "Нейромережеве масштабування (AI Upscale)": 2.0
+};
+
+function getTaskDurationSec(complexity, filterType) {
+    const weight = FILTER_WEIGHTS[filterType] || 1.0;
+    return Math.round((10 * complexity * 40 * weight) / 1000);
+}
+
+function calculateWaitTime(queuePos, complexity, filterType) {
+    const singleTaskSec = getTaskDurationSec(complexity, filterType);
+    return Math.max(3, Math.round((queuePos * singleTaskSec) / 2));
 }
 
 app.post('/api/register', (req, res) => {
@@ -77,12 +90,13 @@ app.post('/api/task', (req, res) => {
                     `SELECT COUNT(*) as pos FROM tasks WHERE status = 'queued' AND id <= ?`,
                     [taskId],
                     (err, row) => {
-                        const waitSec = getWaitTime(row ? row.pos : 1, complexity);
+                        const pos = row ? row.pos : 1;
+                        const waitSec = calculateWaitTime(pos, complexity, filterType);
                         res.status(202).json({
                             queued: true,
-                            message: "Усі ресурси системи наразі вичерпані (ліміт: 2 задачі на вузол). Запит успішно поставлено у чергу.",
+                            message: "Усі ресурси системи наразі вичерпані (ліміт: 2 задачі на вузол). Запит поставлено у чергу.",
                             task_id: taskId,
-                            queue_position: row ? row.pos : 1,
+                            queue_position: pos,
                             estimated_wait_sec: waitSec
                         });
                     }
@@ -98,12 +112,15 @@ app.post('/api/task', (req, res) => {
         [user_id, taskName, PORT],
         function() {
             res.json({ message: "Виконання розпочато", task_id: this.lastID });
-            processTask(this.lastID, complexity);
+            processTask(this.lastID, complexity, filterType);
         }
     );
 });
 
-async function processTask(taskId, complexity) {
+async function processTask(taskId, complexity, filterType) {
+    const weight = FILTER_WEIGHTS[filterType] || 1.0;
+    const stepDelay = Math.round(complexity * 40 * weight);
+
     for (let i = 1; i <= 10; i++) {
         const row = await new Promise(res =>
             db.get(`SELECT status FROM tasks WHERE id = ?`, [taskId], (e, r) => res(r))
@@ -113,7 +130,7 @@ async function processTask(taskId, complexity) {
             checkQueue();
             return;
         }
-        await new Promise(res => setTimeout(res, complexity * 50));
+        await new Promise(res => setTimeout(res, stepDelay));
         db.run(`UPDATE tasks SET progress = ? WHERE id = ?`, [i * 10, taskId]);
     }
 
@@ -134,8 +151,11 @@ function checkQueue() {
                     function() {
                         if (this.changes > 0) {
                             activeTasksCount++;
-                            const comp = parseInt(task.task_name.match(/Складність: (\d+)/)[1]) || 50;
-                            processTask(task.id, comp);
+                            const compMatch = task.task_name.match(/Складність: (\d+)/);
+                            const filterMatch = task.task_name.match(/Фільтр: ([^,]+)/);
+                            const comp = compMatch ? parseInt(compMatch[1]) : 50;
+                            const fType = filterMatch ? filterMatch[1].trim() : "Розмиття (Gaussian Blur)";
+                            processTask(task.id, comp, fType);
                         }
                     }
                 );

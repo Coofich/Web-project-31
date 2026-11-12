@@ -344,10 +344,10 @@
         <div class="form-group">
             <label for="filterType">Тип фільтра для обробки</label>
             <select id="filterType">
-                <option value="Розмиття (Gaussian Blur)">Розмиття (Gaussian Blur)</option>
-                <option value="Нейромережеве масштабування (AI Upscale)">Нейромережеве масштабування (AI Upscale)</option>
-                <option value="Інверсія та корекція кольору">Інверсія та корекція кольору</option>
-                <option value="Рендеринг тривимірної сцени">Рендеринг тривимірної сцени</option>
+                <option value="Інверсія та корекція кольору">Інверсія та корекція кольору (Легкий)</option>
+                <option value="Розмиття (Gaussian Blur)" selected>Розмиття (Gaussian Blur) (Середній)</option>
+                <option value="Рендеринг тривимірної сцени">Рендеринг тривимірної сцени (Важкий)</option>
+                <option value="Нейромережеве масштабування (AI Upscale)">Нейромережеве масштабування (AI Upscale) (Максимальний)</option>
             </select>
         </div>
         <div class="form-group">
@@ -603,6 +603,7 @@
     }
 
     checkAuth();
+    setInterval(loadHistory, 2500);
 </script>
 
 </body>
