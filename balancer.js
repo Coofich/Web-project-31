@@ -51,6 +51,29 @@ setInterval(() => {
     });
 }, 5000);
 
+function getTargetServer(req, callback) {
+    if (req.method === 'POST' && req.url === '/api/task') {
+        db.all(`SELECT server_port, COUNT(*) as cnt FROM tasks WHERE status = 'processing' GROUP BY server_port`, (err, rows) => {
+            const loadMap = {};
+            (rows || []).forEach(r => { loadMap[r.server_port] = r.cnt; });
+
+            const freeServer = servers.find(s => (loadMap[s.port] || 0) < 2);
+            if (freeServer) {
+                return callback(freeServer);
+            }
+
+            const target = servers[currentServerIndex];
+            currentServerIndex = (currentServerIndex + 1) % servers.length;
+            callback(target);
+        });
+        return;
+    }
+
+    const target = servers[currentServerIndex];
+    currentServerIndex = (currentServerIndex + 1) % servers.length;
+    callback(target);
+}
+
 function handleRequest(req, res) {
     if (req.url === '/api/admin/system-stats') {
         db.all(
@@ -89,12 +112,16 @@ function handleRequest(req, res) {
         return res.end(JSON.stringify({ error: "Вузли кластера ініціалізуються. Зачекайте 1 секунду." }));
     }
 
-    const targetServer = servers[currentServerIndex];
-    currentServerIndex = (currentServerIndex + 1) % servers.length;
+    getTargetServer(req, (targetServer) => {
+        if (!targetServer) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Немає доступних серверів" }));
+        }
 
-    proxy.web(req, res, { target: `http://localhost:${targetServer.port}` }, (err) => {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: "Вузол тимчасово недоступний" }));
+        proxy.web(req, res, { target: `http://localhost:${targetServer.port}` }, () => {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: "Вузол тимчасово недоступний" }));
+        });
     });
 }
 
