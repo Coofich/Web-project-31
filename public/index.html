@@ -487,6 +487,11 @@
         btn.disabled = true;
         btn.innerText = "Відправка...";
 
+        const safetyTimer = setTimeout(() => {
+            btn.disabled = false;
+            btn.innerText = "Відправити на обробку";
+        }, 3500);
+
         try {
             const res = await fetch('/api/task', {
                 method: 'POST',
@@ -499,6 +504,7 @@
             });
 
             const data = await res.json();
+            clearTimeout(safetyTimer);
 
             if (res.status === 400) {
                 alertBox.innerText = data.error;
@@ -519,6 +525,7 @@
                 trackProgress(data.task_id);
             }
         } catch (e) {
+            clearTimeout(safetyTimer);
             alertBox.innerText = "Помилка відправки задачі!";
             alertBox.className = 'alert alert-error';
             alertBox.style.display = 'block';

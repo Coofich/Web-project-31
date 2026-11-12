@@ -7,7 +7,6 @@ app.use(express.static('public'));
 
 const PORT = parseInt(process.argv[2]) || 3001;
 const MAX_ACTIVE_TASKS = 2;
-const MAX_TASKS_PER_USER = 20;
 let activeTasksCount = 0;
 const cancelledTasks = new Set();
 
@@ -74,23 +73,19 @@ app.post('/api/task', (req, res) => {
 
     const taskName = `Фільтр: ${filterType}, Складність: ${complexity}`;
 
-    db.run(
-        `DELETE FROM tasks WHERE user_id = ? AND id NOT IN (
-            SELECT id FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT ?
-        )`,
-        [user_id, user_id, MAX_TASKS_PER_USER - 1]
-    );
-
     if (activeTasksCount >= MAX_ACTIVE_TASKS) {
         db.run(
             `INSERT INTO tasks (user_id, task_name, server_port, status) VALUES (?, ?, ?, 'queued')`,
             [user_id, taskName, null],
-            function() {
+            function(err) {
+                if (err) {
+                    return res.status(500).json({ error: "Помилка бази даних при додаванні в чергу" });
+                }
                 const taskId = this.lastID;
                 db.get(
                     `SELECT COUNT(*) as pos FROM tasks WHERE status = 'queued' AND id <= ?`,
                     [taskId],
-                    (err, row) => {
+                    (errCount, row) => {
                         const pos = row ? row.pos : 1;
                         const waitSec = calculateWaitTime(pos, complexity, filterType);
                         res.status(202).json({
@@ -111,7 +106,11 @@ app.post('/api/task', (req, res) => {
     db.run(
         `INSERT INTO tasks (user_id, task_name, server_port, status) VALUES (?, ?, ?, 'processing')`,
         [user_id, taskName, PORT],
-        function() {
+        function(err) {
+            if (err) {
+                activeTasksCount--;
+                return res.status(500).json({ error: "Помилка створення задачі" });
+            }
             res.json({ message: "Виконання розпочато", task_id: this.lastID });
             processTask(this.lastID, complexity, filterType);
         }
@@ -142,35 +141,40 @@ async function processTask(taskId, complexity, filterType) {
         db.run(`UPDATE tasks SET progress = ? WHERE id = ?`, [i * 10, taskId]);
     }
 
-    db.run(`UPDATE tasks SET status = 'completed' WHERE id = ?`, [taskId]);
-    activeTasksCount--;
-    checkQueue();
+    db.run(`UPDATE tasks SET status = 'completed' WHERE id = ?`, [taskId], () => {
+        activeTasksCount--;
+        checkQueue();
+    });
 }
 
 function checkQueue() {
-    if (activeTasksCount < MAX_ACTIVE_TASKS) {
-        db.get(
-            `SELECT * FROM tasks WHERE status = 'queued' ORDER BY id ASC LIMIT 1`,
-            (err, task) => {
-                if (!task) return;
-                db.run(
-                    `UPDATE tasks SET status = 'processing', server_port = ? WHERE id = ? AND status = 'queued'`,
-                    [PORT, task.id],
-                    function() {
-                        if (this.changes > 0) {
-                            activeTasksCount++;
-                            const compMatch = task.task_name.match(/Складність: (\d+)/);
-                            const filterMatch = task.task_name.match(/Фільтр: ([^,]+)/);
-                            const comp = compMatch ? parseInt(compMatch[1]) : 50;
-                            const fType = filterMatch ? filterMatch[1].trim() : "Розмиття (Gaussian Blur)";
-                            processTask(task.id, comp, fType);
-                        }
+    if (activeTasksCount >= MAX_ACTIVE_TASKS) return;
+
+    db.get(
+        `SELECT * FROM tasks WHERE status = 'queued' ORDER BY id ASC LIMIT 1`,
+        (err, task) => {
+            if (err || !task || activeTasksCount >= MAX_ACTIVE_TASKS) return;
+
+            db.run(
+                `UPDATE tasks SET status = 'processing', server_port = ? WHERE id = ? AND status = 'queued'`,
+                [PORT, task.id],
+                function(updateErr) {
+                    if (!updateErr && this.changes > 0) {
+                        activeTasksCount++;
+                        const compMatch = task.task_name.match(/Складність: (\d+)/);
+                        const filterMatch = task.task_name.match(/Фільтр: ([^,]+)/);
+                        const comp = compMatch ? parseInt(compMatch[1]) : 50;
+                        const fType = filterMatch ? filterMatch[1].trim() : "Розмиття (Gaussian Blur)";
+                        processTask(task.id, comp, fType);
                     }
-                );
-            }
-        );
-    }
+                }
+            );
+        }
+    );
 }
+
+setInterval(checkQueue, 2000);
+setTimeout(checkQueue, 1000);
 
 app.get('/api/progress/:taskId', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -198,9 +202,9 @@ app.get('/api/progress/:taskId', (req, res) => {
 
 app.get('/api/tasks/:userId', (req, res) => {
     db.all(
-        `SELECT * FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT ?`,
-        [req.params.userId, MAX_TASKS_PER_USER],
-        (err, rows) => res.json(rows)
+        `SELECT * FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT 20`,
+        [req.params.userId],
+        (err, rows) => res.json(rows || [])
     );
 });
 
