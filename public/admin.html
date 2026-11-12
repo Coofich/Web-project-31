@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель адміністратора - Моніторинг кластера</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --primary: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --radius: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 24px 16px;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .nav-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: var(--radius);
+            transition: background 0.2s;
+        }
+
+        .nav-link:hover {
+            background: #21262d;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+        }
+
+        .metric-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: var(--muted);
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .metric-sub {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .panel-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 14px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-normal {
+            background: rgba(63, 185, 80, 0.15);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .status-scaling {
+            background: rgba(210, 153, 34, 0.15);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .status-limited {
+            background: rgba(248, 81, 73, 0.15);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .node-card {
+            background: #21262d;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+        }
+
+        .node-port {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 1rem;
+        }
+
+        .node-load {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .progress-bar-small {
+            height: 6px;
+            background: #30363d;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .progress-bar-small-fill {
+            height: 100%;
+            background: var(--success);
+            transition: width 0.3s;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge-queued {
+            color: var(--warning);
+            background: rgba(210, 153, 34, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-processing {
+            color: var(--primary);
+            background: rgba(88, 166, 255, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .empty-tasks {
+            text-align: center;
+            color: var(--muted);
+            padding: 24px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Панель моніторингу кластера</h1>
+        <a href="/" class="nav-link">До сервісу</a>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-title">Активні вузли</div>
+            <div class="metric-value"><span id="activeServers">0</span> / <span id="maxServers">0</span></div>
+            <div class="metric-sub">Application Servers</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">В процесі обробки</div>
+            <div class="metric-value" id="processingTasks" style="color: var(--primary);">0</div>
+            <div class="metric-sub">Активні фонові задачі</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Задачі в черзі</div>
+            <div class="metric-value" id="queuedTasks" style="color: var(--warning);">0</div>
+            <div class="metric-sub">Очікують вільних ресурсів</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Балансувальник</div>
+            <div class="metric-value" style="color: var(--success); font-size: 1.4rem; padding-top: 4px;">ONLINE</div>
+            <div class="metric-sub">Порт: 3000 (Round-Robin)</div>
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <div class="panel-title">Стан горизонтального масштабування</div>
+        <div id="scaleBadge" class="status-badge status-normal">Навантаження в межах норми</div>
+        <div id="scaleDesc" style="font-size: 0.9rem; color: var(--muted); margin-top: 10px;">
+            Система контролює кількість задач у черзі кожні 5 секунд і за потреби створює додаткові процеси-обробники.
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <div class="panel-title">Навантаження вузлів кластера (макс 2 задачі / сервер)</div>
+        <div class="nodes-grid" id="nodesContainer"></div>
+    </div>
+
+    <div class="panel-card">
+        <div class="panel-title">Моніторинг усіх запущених процесів у системі</div>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Користувач</th>
+                        <th>Назва задачі</th>
+                        <th>Статус</th>
+                        <th>Вузол</th>
+                        <th>Прогрес</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksTableBody">
+                    <tr>
+                        <td colspan="6" class="empty-tasks">Завантаження даних...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function updateDashboard() {
+        try {
+            const res = await fetch('/api/admin/system-stats');
+            const data = await res.json();
+
+            document.getElementById('activeServers').innerText = data.activeServersCount;
+            document.getElementById('maxServers').innerText = data.maxServers;
+            document.getElementById('queuedTasks').innerText = data.queuedTasks;
+            document.getElementById('processingTasks').innerText = data.processingTasks || 0;
+
+            const nodesContainer = document.getElementById('nodesContainer');
+            if (data.nodeLoads && data.nodeLoads.length > 0) {
+                nodesContainer.innerHTML = data.nodeLoads.map(n => {
+                    const percent = Math.min((n.load / 2) * 100, 100);
+                    const color = percent >= 100 ? 'var(--danger)' : (percent > 0 ? 'var(--primary)' : 'var(--success)');
+                    return `
+                        <div class="node-card">
+                            <div class="node-port">localhost:${n.port}</div>
+                            <div class="node-load">Навантаження: ${n.load} / 2 задач</div>
+                            <div class="progress-bar-small">
+                                <div class="progress-bar-small-fill" style="width: ${percent}%; background: ${color};"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                nodesContainer.innerHTML = '<div style="color: var(--muted); font-size: 0.9rem;">Вузли відсутні</div>';
+            }
+
+            const tbody = document.getElementById('tasksTableBody');
+            if (data.tasks && data.tasks.length > 0) {
+                tbody.innerHTML = data.tasks.map(t => {
+                    const badgeClass = t.status === 'processing' ? 'badge-processing' : 'badge-queued';
+                    const serverText = t.server_port ? `localhost:${t.server_port}` : 'Черга';
+                    return `
+                        <tr>
+                            <td>#${t.id}</td>
+                            <td>${t.username || 'user #' + t.user_id}</td>
+                            <td>${t.task_name}</td>
+                            <td><span class="${badgeClass}">${t.status}</span></td>
+                            <td style="font-family: monospace;">${serverText}</td>
+                            <td><b>${t.progress}%</b></td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-tasks">Активних процесів немає. Система очікує нових задач.</td></tr>';
+            }
+
+            const scaleBadge = document.getElementById('scaleBadge');
+            const scaleDesc = document.getElementById('scaleDesc');
+
+            if (data.queuedTasks > 0 && data.activeServersCount < data.maxServers) {
+                scaleBadge.className = 'status-badge status-scaling';
+                scaleBadge.innerText = 'Високе навантаження: ініціалізація нового вузла';
+                scaleDesc.innerText = 'Виявлено задачі в черзі. Балансувальник створює новий процес для розширення пулу обробників.';
+            } else if (data.queuedTasks > 0 && data.activeServersCount >= data.maxServers) {
+                scaleBadge.className = 'status-badge status-limited';
+                scaleBadge.innerText = 'Досягнуто ліміту масштабування';
+                scaleDesc.innerText = 'Всі допустимі вузли (4 сервери) зайняті. Нові задачі очікують завершення активних процесів у черзі.';
+            } else {
+                scaleBadge.className = 'status-badge status-normal';
+                scaleBadge.innerText = 'Навантаження в межах норми';
+                scaleDesc.innerText = 'Кластер функціонує в штатному режимі. Додаткове масштабування не потрібне.';
+            }
+        } catch (e) {
+            console.error('Помилка отримання метрик:', e);
+        }
+    }
+
+    setInterval(updateDashboard, 2000);
+    updateDashboard();
+</script>
+
+</body>
+</html>

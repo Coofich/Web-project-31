@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сервіс обробки зображень</title>
+    <style>
+        :root {
+            --bg: #11141c;
+            --card: #1c212d;
+            --card-hover: #222938;
+            --border: #2c3547;
+            --text: #e5e9f0;
+            --muted: #8893a7;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            padding: 24px 16px;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .user-info strong {
+            color: #fff;
+        }
+
+        .header-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: var(--radius);
+            transition: background 0.2s;
+        }
+
+        .header-link:hover {
+            background: var(--card-hover);
+        }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 6px 12px;
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            background: #141722;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: #fff;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--primary);
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            width: auto;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--danger);
+            color: #fca5a5;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--warning);
+            color: #fcd34d;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--success);
+            color: #6ee7b7;
+        }
+
+        .task-item {
+            background: #151922;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-queued {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .badge-processing {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--primary);
+        }
+
+        .badge-completed {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .badge-cancelled {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            background: #242c3d;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        .task-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .empty-history {
+            text-align: center;
+            color: var(--muted);
+            padding: 20px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Сервіс обробки зображень</h1>
+        <div class="header-actions">
+            <span class="user-info" id="userDisplay" style="display:none;">Користувач: <strong id="usernameLabel"></strong></span>
+            <button class="btn-logout" id="logoutBtn" style="display:none;" onclick="logout()">Вийти</button>
+            <a href="/admin.html" class="header-link">Панель моніторингу</a>
+        </div>
+    </div>
+
+    <div class="card" id="loginBox">
+        <div class="card-title">Авторизація клієнта</div>
+        <div class="form-group">
+            <label for="username">Ім'я користувача</label>
+            <input type="text" id="username" value="student">
+        </div>
+        <button class="btn" onclick="login()">Увійти в систему</button>
+    </div>
+
+    <div class="card" id="taskBox" style="display:none;">
+        <div class="card-title">Створення нової задачі</div>
+        <div class="form-group">
+            <label for="filterType">Тип фільтра для обробки</label>
+            <select id="filterType">
+                <option value="Розмиття (Gaussian Blur)">Розмиття (Gaussian Blur)</option>
+                <option value="Нейромережеве масштабування (AI Upscale)">Нейромережеве масштабування (AI Upscale)</option>
+                <option value="Інверсія та корекція кольору">Інверсія та корекція кольору</option>
+                <option value="Рендеринг тривимірної сцени">Рендеринг тривимірної сцени</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="complexity">Трудомісткість / Роздільна здатність (1-100)</label>
+            <input type="number" id="complexity" value="50" min="1" max="100">
+        </div>
+        <button class="btn" onclick="startTask()">Відправити на обробку</button>
+        <div class="alert" id="taskAlert"></div>
+    </div>
+
+    <div class="card" id="historyBox" style="display:none;">
+        <div class="card-title">Історія виконання задач</div>
+        <div id="tasksList"></div>
+    </div>
+</div>
+
+<script>
+    let currentUser = null;
+
+    function checkAuth() {
+        const stored = localStorage.getItem('auth_user');
+        if (stored) {
+            try {
+                currentUser = JSON.parse(stored);
+                showApp();
+                loadHistory();
+            } catch (e) {
+                localStorage.removeItem('auth_user');
+            }
+        }
+    }
+
+    function showApp() {
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('taskBox').style.display = 'block';
+        document.getElementById('historyBox').style.display = 'block';
+        document.getElementById('userDisplay').style.display = 'inline';
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('usernameLabel').innerText = currentUser.username;
+    }
+
+    function logout() {
+        localStorage.removeItem('auth_user');
+        currentUser = null;
+        document.getElementById('loginBox').style.display = 'block';
+        document.getElementById('taskBox').style.display = 'none';
+        document.getElementById('historyBox').style.display = 'none';
+        document.getElementById('userDisplay').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('tasksList').innerHTML = '';
+    }
+
+    async function login() {
+        const username = document.getElementById('username').value.trim();
+        if (!username) return;
+
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username})
+        });
+
+        const data = await res.json();
+        currentUser = {
+            id: data.user_id,
+            token: data.token,
+            username: username
+        };
+
+        localStorage.setItem('auth_user', JSON.stringify(currentUser));
+        showApp();
+        loadHistory();
+    }
+
+    async function startTask() {
+        if (!currentUser) return;
+
+        const complexityInput = document.getElementById('complexity');
+        const complexity = parseInt(complexityInput.value, 10);
+        const filterType = document.getElementById('filterType').value;
+        const alertBox = document.getElementById('taskAlert');
+
+        alertBox.style.display = 'none';
+        alertBox.className = 'alert';
+
+        if (isNaN(complexity) || complexity > 100 || complexity < 1) {
+            alertBox.innerText = "Помилка валідації: трудомісткість повинна бути в межах від 1 до 100!";
+            alertBox.classList.add('alert-error');
+            alertBox.style.display = 'block';
+            return;
+        }
+
+        const res = await fetch('/api/task', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                complexity: complexity,
+                filterType: filterType
+            })
+        });
+
+        const data = await res.json();
+
+        if (res.status === 400) {
+            alertBox.innerText = data.error;
+            alertBox.classList.add('alert-error');
+            alertBox.style.display = 'block';
+        } else if (res.status === 202) {
+            alertBox.innerText = `${data.message} Ваша позиція в черзі: ${data.queue_position}. Орієнтовний час очікування: ~${data.estimated_wait_sec} сек.`;
+            alertBox.classList.add('alert-warning');
+            alertBox.style.display = 'block';
+        } else if (res.ok) {
+            alertBox.innerText = "Задачу успішно відправлено на виконання!";
+            alertBox.classList.add('alert-success');
+            alertBox.style.display = 'block';
+        }
+
+        loadHistory();
+        if (data.task_id) {
+            trackProgress(data.task_id);
+        }
+    }
+
+    function trackProgress(taskId) {
+        const source = new EventSource(`/api/progress/${taskId}`);
+
+        source.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const bar = document.getElementById(`prog-${taskId}`);
+            const text = document.getElementById(`pct-${taskId}`);
+
+            if (bar) bar.style.width = data.progress + "%";
+            if (text) text.innerText = data.progress + "%";
+
+            if (['completed', 'cancelled', 'error'].includes(data.status)) {
+                source.close();
+                loadHistory();
+            }
+        };
+
+        source.onerror = function() {
+            source.close();
+        };
+    }
+
+    async function loadHistory() {
+        if (!currentUser) return;
+
+        const res = await fetch(`/api/tasks/${currentUser.id}`);
+        const tasks = await res.json();
+        const list = document.getElementById('tasksList');
+
+        if (!tasks || tasks.length === 0) {
+            list.innerHTML = '<div class="empty-history">Задач поки немає. Створіть нову задачу вище.</div>';
+            return;
+        }
+
+        let html = '';
+        tasks.forEach(t => {
+            const statusClass = `badge-${t.status}`;
+            const serverInfo = t.server_port ? `Вузол :${t.server_port}` : 'Очікує призначення вузла';
+
+            html += `
+                <div class="task-item">
+                    <div class="task-header">
+                        <strong>#${t.id} ${t.task_name}</strong>
+                        <span class="badge ${statusClass}">${t.status}</span>
+                    </div>
+
+                    <div class="progress-track">
+                        <div class="progress-fill" id="prog-${t.id}" style="width: ${t.progress}%"></div>
+                    </div>
+
+                    <div class="task-footer">
+                        <span>${serverInfo} | Прогрес: <b id="pct-${t.id}">${t.progress}%</b></span>
+                        ${['processing', 'queued'].includes(t.status) ? `<button class="btn btn-danger" onclick="cancelTask(${t.id})">Скасувати</button>` : ''}
+                    </div>
+                </div>
+            `;
+
+            if (t.status === 'processing') {
+                trackProgress(t.id);
+            }
+        });
+
+        list.innerHTML = html;
+    }
+
+    async function cancelTask(taskId) {
+        await fetch(`/api/cancel/${taskId}`, {method: 'POST'});
+        loadHistory();
+    }
+
+    checkAuth();
+</script>
+
+</body>
+</html>
