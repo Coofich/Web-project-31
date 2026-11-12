@@ -1,6 +1,8 @@
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./app.db');
 
+db.configure('busyTimeout', 5000);
+
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,8 +18,6 @@ db.serialize(() => {
         status TEXT DEFAULT 'pending',
         server_port INTEGER
     )`);
-    
-    console.log("База даних успішно ініціалізована.");
 });
 
 module.exports = db;
