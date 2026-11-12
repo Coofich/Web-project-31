@@ -265,6 +265,16 @@
             color: var(--danger);
         }
 
+        .queue-notice {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px dashed var(--warning);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            color: #fde68a;
+            margin: 8px 0;
+        }
+
         .progress-track {
             width: 100%;
             height: 8px;
@@ -344,10 +354,10 @@
         <div class="form-group">
             <label for="filterType">Тип фільтра для обробки</label>
             <select id="filterType">
-                <option value="Інверсія та корекція кольору">Інверсія та корекція кольору (Легкий)</option>
-                <option value="Розмиття (Gaussian Blur)" selected>Розмиття (Gaussian Blur) (Середній)</option>
-                <option value="Рендеринг тривимірної сцени">Рендеринг тривимірної сцени (Важкий)</option>
-                <option value="Нейромережеве масштабування (AI Upscale)">Нейромережеве масштабування (AI Upscale) (Максимальний)</option>
+                <option value="Інверсія та корекція кольору">Інверсія та корекція кольору (Легкий - x0.5)</option>
+                <option value="Розмиття (Gaussian Blur)" selected>Розмиття (Gaussian Blur) (Середній - x1.0)</option>
+                <option value="Рендеринг тривимірної сцени">Рендеринг тривимірної сцени (Важкий - x1.5)</option>
+                <option value="Нейромережеве масштабування (AI Upscale)">Нейромережеве масштабування (AI Upscale) (Максимальний - x2.0)</option>
             </select>
         </div>
         <div class="form-group">
@@ -467,12 +477,9 @@
         const filterType = document.getElementById('filterType').value;
         const alertBox = document.getElementById('taskAlert');
 
-        alertBox.style.display = 'none';
-        alertBox.className = 'alert';
-
         if (isNaN(complexity) || complexity > 100 || complexity < 1) {
             alertBox.innerText = "Помилка валідації (Пункт 1 ТЗ): трудомісткість задачі повинна бути в межах від 1 до 100!";
-            alertBox.classList.add('alert-error');
+            alertBox.className = 'alert alert-error';
             alertBox.style.display = 'block';
             return;
         }
@@ -495,15 +502,15 @@
 
             if (res.status === 400) {
                 alertBox.innerText = data.error;
-                alertBox.classList.add('alert-error');
+                alertBox.className = 'alert alert-error';
                 alertBox.style.display = 'block';
             } else if (res.status === 202) {
                 alertBox.innerHTML = `<strong>${data.message}</strong><br>Позиція в черзі: <b>№${data.queue_position}</b> | Орієнтовний час очікування: <b>~${data.estimated_wait_sec} сек</b>. Вільний вузол автоматично розпочне обробку.`;
-                alertBox.classList.add('alert-warning');
+                alertBox.className = 'alert alert-warning';
                 alertBox.style.display = 'block';
             } else if (res.ok) {
                 alertBox.innerText = "Задачу прийнято на виконання!";
-                alertBox.classList.add('alert-success');
+                alertBox.className = 'alert alert-success';
                 alertBox.style.display = 'block';
             }
 
@@ -513,7 +520,7 @@
             }
         } catch (e) {
             alertBox.innerText = "Помилка відправки задачі!";
-            alertBox.classList.add('alert-error');
+            alertBox.className = 'alert alert-error';
             alertBox.style.display = 'block';
         } finally {
             btn.disabled = false;
@@ -565,6 +572,9 @@
             tasks.forEach(t => {
                 const statusClass = `badge-${t.status}`;
                 const serverInfo = t.server_port ? `Вузол :${t.server_port}` : 'Очікує в черзі на вільний вузол';
+                const queueBlock = t.status === 'queued' 
+                    ? `<div class="queue-notice">Запит у черзі: очікує звільнення обчислювального вузла. Обробка розпочнеться автоматично.</div>` 
+                    : '';
 
                 html += `
                     <div class="task-item">
@@ -572,6 +582,8 @@
                             <strong>#${t.id} ${t.task_name}</strong>
                             <span class="badge ${statusClass}">${t.status}</span>
                         </div>
+
+                        ${queueBlock}
 
                         <div class="progress-track">
                             <div class="progress-fill" id="prog-${t.id}" style="width: ${t.progress}%"></div>
@@ -603,7 +615,7 @@
     }
 
     checkAuth();
-    setInterval(loadHistory, 2500);
+    setInterval(loadHistory, 2000);
 </script>
 
 </body>

@@ -9,6 +9,7 @@ const PORT = parseInt(process.argv[2]) || 3001;
 const MAX_ACTIVE_TASKS = 2;
 const MAX_TASKS_PER_USER = 20;
 let activeTasksCount = 0;
+const cancelledTasks = new Set();
 
 const FILTER_WEIGHTS = {
     "Інверсія та корекція кольору": 0.5,
@@ -122,15 +123,22 @@ async function processTask(taskId, complexity, filterType) {
     const stepDelay = Math.round(complexity * 40 * weight);
 
     for (let i = 1; i <= 10; i++) {
-        const row = await new Promise(res =>
-            db.get(`SELECT status FROM tasks WHERE id = ?`, [taskId], (e, r) => res(r))
-        );
-        if (row && row.status === 'cancelled') {
+        if (cancelledTasks.has(taskId)) {
+            cancelledTasks.delete(taskId);
             activeTasksCount--;
             checkQueue();
             return;
         }
+
         await new Promise(res => setTimeout(res, stepDelay));
+
+        if (cancelledTasks.has(taskId)) {
+            cancelledTasks.delete(taskId);
+            activeTasksCount--;
+            checkQueue();
+            return;
+        }
+
         db.run(`UPDATE tasks SET progress = ? WHERE id = ?`, [i * 10, taskId]);
     }
 
@@ -183,7 +191,7 @@ app.get('/api/progress/:taskId', (req, res) => {
                 }
             }
         );
-    }, 1000);
+    }, 1200);
 
     req.on('close', () => clearInterval(interval));
 });
@@ -197,9 +205,11 @@ app.get('/api/tasks/:userId', (req, res) => {
 });
 
 app.post('/api/cancel/:taskId', (req, res) => {
+    const tId = parseInt(req.params.taskId);
+    cancelledTasks.add(tId);
     db.run(
         `UPDATE tasks SET status = 'cancelled' WHERE id = ?`,
-        [req.params.taskId],
+        [tId],
         () => res.json({ message: "Скасовано" })
     );
 });
