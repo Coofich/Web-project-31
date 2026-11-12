@@ -16,6 +16,7 @@ const proxy = httpProxy.createProxyServer({
 
 let servers = [];
 let currentServerIndex = 0;
+let taskServerIndex = 0;
 const MAX_SERVERS = 4;
 let nextPort = 3001;
 
@@ -57,14 +58,24 @@ function getTargetServer(req, callback) {
             const loadMap = {};
             (rows || []).forEach(r => { loadMap[r.server_port] = r.cnt; });
 
-            const freeServer = servers.find(s => (loadMap[s.port] || 0) < 2);
-            if (freeServer) {
-                return callback(freeServer);
+            let minLoad = 999;
+            servers.forEach(s => {
+                const load = loadMap[s.port] || 0;
+                if (load < minLoad) minLoad = load;
+            });
+
+            if (minLoad >= 2) {
+                const target = servers[taskServerIndex % servers.length];
+                taskServerIndex = (taskServerIndex + 1) % servers.length;
+                return callback(target);
             }
 
-            const target = servers[currentServerIndex];
-            currentServerIndex = (currentServerIndex + 1) % servers.length;
-            callback(target);
+            const candidates = servers
+                .filter(s => (loadMap[s.port] || 0) === minLoad)
+                .sort((a, b) => a.port - b.port);
+            const chosen = candidates[taskServerIndex % candidates.length];
+            taskServerIndex = (taskServerIndex + 1) % servers.length;
+            callback(chosen);
         });
         return;
     }
