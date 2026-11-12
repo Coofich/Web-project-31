@@ -1,9 +1,19 @@
-const http = require('http');
+const https = require('https');
 const httpProxy = require('http-proxy');
 const { spawn } = require('child_process');
+const fs = require('fs');
 const db = require('./database');
 
-const proxy = httpProxy.createProxyServer({});
+const httpsOptions = {
+    key: fs.readFileSync('./server.key'),
+    cert: fs.readFileSync('./server.cert')
+};
+
+const proxy = httpProxy.createProxyServer({
+    proxyTimeout: 3000,
+    timeout: 3000
+});
+
 let servers = [];
 let currentServerIndex = 0;
 const MAX_SERVERS = 4;
@@ -12,10 +22,22 @@ let nextPort = 3001;
 function spawnNewServer() {
     if (servers.length >= MAX_SERVERS) return;
     const port = nextPort++;
-    const worker = spawn('node', ['server.js', port], { stdio: 'inherit', shell: true });
-    servers.push({ port, worker });
-    console.log(`[Balancer] Server spawned on port ${port}. Total servers: ${servers.length}`);
+    const worker = spawn('node', ['server.js', port.toString()], { stdio: 'inherit' });
+    setTimeout(() => {
+        servers.push({ port, worker });
+        console.log(`[Balancer] Server on port ${port} is ready. Total: ${servers.length}`);
+    }, 1200);
 }
+
+function cleanup() {
+    servers.forEach(s => {
+        try { s.worker.kill(); } catch (e) {}
+    });
+    process.exit();
+}
+
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
 
 spawnNewServer();
 spawnNewServer();
@@ -29,7 +51,7 @@ setInterval(() => {
     });
 }, 5000);
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
     if (req.url === '/api/admin/system-stats') {
         db.all(
             `SELECT t.id, t.user_id, u.username, t.task_name, t.progress, t.status, t.server_port 
@@ -54,8 +76,8 @@ const server = http.createServer((req, res) => {
                     queuedTasks: queuedCount,
                     processingTasks: processingCount,
                     servers: servers.map(s => s.port),
-                    nodeLoads: nodeLoads,
-                    tasks: tasks
+                    nodeLoads,
+                    tasks
                 }));
             }
         );
@@ -63,20 +85,22 @@ const server = http.createServer((req, res) => {
     }
 
     if (servers.length === 0) {
-        res.writeHead(500);
-        return res.end("No available application servers");
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Вузли кластера ініціалізуються. Зачекайте 1 секунду." }));
     }
 
     const targetServer = servers[currentServerIndex];
     currentServerIndex = (currentServerIndex + 1) % servers.length;
 
     proxy.web(req, res, { target: `http://localhost:${targetServer.port}` }, (err) => {
-        res.writeHead(502);
-        res.end("Bad Gateway - Application server is down");
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: "Вузол тимчасово недоступний" }));
     });
-});
+}
+
+const server = https.createServer(httpsOptions, handleRequest);
 
 server.listen(3000, () => {
-    console.log(`[Balancer] Main load balancer running on http://localhost:3000`);
-    console.log(`[Balancer] Admin monitor running on http://localhost:3000/admin.html`);
+    console.log(`[Balancer] HTTPS Load Balancer running on https://localhost:3000`);
+    console.log(`[Balancer] Admin monitor running on https://localhost:3000/admin.html`);
 });

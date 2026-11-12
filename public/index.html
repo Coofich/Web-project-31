@@ -35,7 +35,7 @@
         }
 
         .container {
-            max-width: 720px;
+            max-width: 760px;
             margin: 0 auto;
         }
 
@@ -141,6 +141,11 @@
             border-color: var(--primary);
         }
 
+        .btn-row {
+            display: flex;
+            gap: 10px;
+        }
+
         .btn {
             display: inline-block;
             padding: 10px 18px;
@@ -153,10 +158,26 @@
             cursor: pointer;
             transition: background 0.2s;
             width: 100%;
+            text-align: center;
         }
 
         .btn:hover {
             background: var(--primary-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #232b3a;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: #2b3548;
         }
 
         .btn-danger {
@@ -171,11 +192,12 @@
         }
 
         .alert {
-            padding: 12px;
+            padding: 14px 16px;
             border-radius: var(--radius);
             font-size: 0.9rem;
-            margin-top: 12px;
+            margin-top: 14px;
             display: none;
+            line-height: 1.5;
         }
 
         .alert-error {
@@ -185,9 +207,10 @@
         }
 
         .alert-warning {
-            background: rgba(245, 158, 11, 0.15);
+            background: rgba(245, 158, 11, 0.18);
             border: 1px solid var(--warning);
-            color: #fcd34d;
+            color: #fde68a;
+            font-weight: 500;
         }
 
         .alert-success {
@@ -214,7 +237,7 @@
 
         .badge {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 3px 8px;
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: 600;
@@ -222,7 +245,8 @@
         }
 
         .badge-queued {
-            background: rgba(245, 158, 11, 0.2);
+            background: rgba(245, 158, 11, 0.25);
+            border: 1px solid rgba(245, 158, 11, 0.4);
             color: var(--warning);
         }
 
@@ -271,13 +295,26 @@
             padding: 20px;
             font-size: 0.9rem;
         }
+
+        .protocol-tag {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <h1>Сервіс обробки зображень</h1>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <h1>Сервіс обробки зображень</h1>
+            <span class="protocol-tag">HTTPS SSL</span>
+        </div>
         <div class="header-actions">
             <span class="user-info" id="userDisplay" style="display:none;">Користувач: <strong id="usernameLabel"></strong></span>
             <button class="btn-logout" id="logoutBtn" style="display:none;" onclick="logout()">Вийти</button>
@@ -286,12 +323,20 @@
     </div>
 
     <div class="card" id="loginBox">
-        <div class="card-title">Авторизація клієнта</div>
+        <div class="card-title">Авторизація користувача (HTTPS)</div>
         <div class="form-group">
-            <label for="username">Ім'я користувача</label>
-            <input type="text" id="username" value="student">
+            <label for="username">Логін</label>
+            <input type="text" id="username" placeholder="Введіть логін">
         </div>
-        <button class="btn" onclick="login()">Увійти в систему</button>
+        <div class="form-group">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" placeholder="Введіть пароль">
+        </div>
+        <div class="btn-row">
+            <button class="btn" onclick="submitAuth('login')">Увійти</button>
+            <button class="btn btn-secondary" onclick="submitAuth('register')">Зареєструватися</button>
+        </div>
+        <div class="alert" id="authAlert"></div>
     </div>
 
     <div class="card" id="taskBox" style="display:none;">
@@ -309,7 +354,7 @@
             <label for="complexity">Трудомісткість / Роздільна здатність (1-100)</label>
             <input type="number" id="complexity" value="50" min="1" max="100">
         </div>
-        <button class="btn" onclick="startTask()">Відправити на обробку</button>
+        <button class="btn" id="submitTaskBtn" onclick="startTask()">Відправити на обробку</button>
         <div class="alert" id="taskAlert"></div>
     </div>
 
@@ -321,6 +366,7 @@
 
 <script>
     let currentUser = null;
+    const activeStreams = {};
 
     function checkAuth() {
         const stored = localStorage.getItem('auth_user');
@@ -345,6 +391,10 @@
     }
 
     function logout() {
+        Object.keys(activeStreams).forEach(id => {
+            try { activeStreams[id].close(); } catch(e) {}
+            delete activeStreams[id];
+        });
         localStorage.removeItem('auth_user');
         currentUser = null;
         document.getElementById('loginBox').style.display = 'block';
@@ -353,33 +403,65 @@
         document.getElementById('userDisplay').style.display = 'none';
         document.getElementById('logoutBtn').style.display = 'none';
         document.getElementById('tasksList').innerHTML = '';
+        document.getElementById('password').value = '';
     }
 
-    async function login() {
+    async function submitAuth(type) {
         const username = document.getElementById('username').value.trim();
-        if (!username) return;
+        const password = document.getElementById('password').value.trim();
+        const alertBox = document.getElementById('authAlert');
 
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username})
-        });
+        alertBox.style.display = 'none';
+        alertBox.className = 'alert';
 
-        const data = await res.json();
-        currentUser = {
-            id: data.user_id,
-            token: data.token,
-            username: username
-        };
+        if (!username || !password) {
+            alertBox.innerText = "Будь ласка, введіть логін та пароль!";
+            alertBox.classList.add('alert-error');
+            alertBox.style.display = 'block';
+            return;
+        }
 
-        localStorage.setItem('auth_user', JSON.stringify(currentUser));
-        showApp();
-        loadHistory();
+        try {
+            const res = await fetch(`/api/${type}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alertBox.innerText = data.error || "Помилка авторизації!";
+                alertBox.classList.add('alert-error');
+                alertBox.style.display = 'block';
+                return;
+            }
+
+            if (type === 'register') {
+                alertBox.innerText = data.message;
+                alertBox.classList.add('alert-success');
+                alertBox.style.display = 'block';
+            } else {
+                currentUser = {
+                    id: data.user_id,
+                    token: data.token,
+                    username: data.username
+                };
+                localStorage.setItem('auth_user', JSON.stringify(currentUser));
+                showApp();
+                loadHistory();
+            }
+        } catch (e) {
+            alertBox.innerText = "Помилка з'єднання із сервером!";
+            alertBox.classList.add('alert-error');
+            alertBox.style.display = 'block';
+        }
     }
 
     async function startTask() {
         if (!currentUser) return;
 
+        const btn = document.getElementById('submitTaskBtn');
         const complexityInput = document.getElementById('complexity');
         const complexity = parseInt(complexityInput.value, 10);
         const filterType = document.getElementById('filterType').value;
@@ -389,46 +471,61 @@
         alertBox.className = 'alert';
 
         if (isNaN(complexity) || complexity > 100 || complexity < 1) {
-            alertBox.innerText = "Помилка валідації: трудомісткість повинна бути в межах від 1 до 100!";
+            alertBox.innerText = "Помилка валідації (Пункт 1 ТЗ): трудомісткість задачі повинна бути в межах від 1 до 100!";
             alertBox.classList.add('alert-error');
             alertBox.style.display = 'block';
             return;
         }
 
-        const res = await fetch('/api/task', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: currentUser.id,
-                complexity: complexity,
-                filterType: filterType
-            })
-        });
+        btn.disabled = true;
+        btn.innerText = "Відправка...";
 
-        const data = await res.json();
+        try {
+            const res = await fetch('/api/task', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    complexity: complexity,
+                    filterType: filterType
+                })
+            });
 
-        if (res.status === 400) {
-            alertBox.innerText = data.error;
+            const data = await res.json();
+
+            if (res.status === 400) {
+                alertBox.innerText = data.error;
+                alertBox.classList.add('alert-error');
+                alertBox.style.display = 'block';
+            } else if (res.status === 202) {
+                alertBox.innerHTML = `<strong>${data.message}</strong><br>Позиція в черзі: <b>№${data.queue_position}</b> | Орієнтовний час очікування: <b>~${data.estimated_wait_sec} сек</b>. Вільний вузол автоматично розпочне обробку.`;
+                alertBox.classList.add('alert-warning');
+                alertBox.style.display = 'block';
+            } else if (res.ok) {
+                alertBox.innerText = "Задачу прийнято на виконання!";
+                alertBox.classList.add('alert-success');
+                alertBox.style.display = 'block';
+            }
+
+            await loadHistory();
+            if (data.task_id) {
+                trackProgress(data.task_id);
+            }
+        } catch (e) {
+            alertBox.innerText = "Помилка відправки задачі!";
             alertBox.classList.add('alert-error');
             alertBox.style.display = 'block';
-        } else if (res.status === 202) {
-            alertBox.innerText = `${data.message} Ваша позиція в черзі: ${data.queue_position}. Орієнтовний час очікування: ~${data.estimated_wait_sec} сек.`;
-            alertBox.classList.add('alert-warning');
-            alertBox.style.display = 'block';
-        } else if (res.ok) {
-            alertBox.innerText = "Задачу успішно відправлено на виконання!";
-            alertBox.classList.add('alert-success');
-            alertBox.style.display = 'block';
-        }
-
-        loadHistory();
-        if (data.task_id) {
-            trackProgress(data.task_id);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Відправити на обробку";
         }
     }
 
     function trackProgress(taskId) {
+        if (activeStreams[taskId]) return;
+
         const source = new EventSource(`/api/progress/${taskId}`);
+        activeStreams[taskId] = source;
 
         source.onmessage = function(e) {
             const data = JSON.parse(e.data);
@@ -440,59 +537,67 @@
 
             if (['completed', 'cancelled', 'error'].includes(data.status)) {
                 source.close();
+                delete activeStreams[taskId];
                 loadHistory();
             }
         };
 
         source.onerror = function() {
             source.close();
+            delete activeStreams[taskId];
         };
     }
 
     async function loadHistory() {
         if (!currentUser) return;
 
-        const res = await fetch(`/api/tasks/${currentUser.id}`);
-        const tasks = await res.json();
-        const list = document.getElementById('tasksList');
+        try {
+            const res = await fetch(`/api/tasks/${currentUser.id}`);
+            const tasks = await res.json();
+            const list = document.getElementById('tasksList');
 
-        if (!tasks || tasks.length === 0) {
-            list.innerHTML = '<div class="empty-history">Задач поки немає. Створіть нову задачу вище.</div>';
-            return;
-        }
-
-        let html = '';
-        tasks.forEach(t => {
-            const statusClass = `badge-${t.status}`;
-            const serverInfo = t.server_port ? `Вузол :${t.server_port}` : 'Очікує призначення вузла';
-
-            html += `
-                <div class="task-item">
-                    <div class="task-header">
-                        <strong>#${t.id} ${t.task_name}</strong>
-                        <span class="badge ${statusClass}">${t.status}</span>
-                    </div>
-
-                    <div class="progress-track">
-                        <div class="progress-fill" id="prog-${t.id}" style="width: ${t.progress}%"></div>
-                    </div>
-
-                    <div class="task-footer">
-                        <span>${serverInfo} | Прогрес: <b id="pct-${t.id}">${t.progress}%</b></span>
-                        ${['processing', 'queued'].includes(t.status) ? `<button class="btn btn-danger" onclick="cancelTask(${t.id})">Скасувати</button>` : ''}
-                    </div>
-                </div>
-            `;
-
-            if (t.status === 'processing') {
-                trackProgress(t.id);
+            if (!tasks || tasks.length === 0) {
+                list.innerHTML = '<div class="empty-history">Задач поки немає. Створіть нову задачу вище.</div>';
+                return;
             }
-        });
 
-        list.innerHTML = html;
+            let html = '';
+            tasks.forEach(t => {
+                const statusClass = `badge-${t.status}`;
+                const serverInfo = t.server_port ? `Вузол :${t.server_port}` : 'Очікує в черзі на вільний вузол';
+
+                html += `
+                    <div class="task-item">
+                        <div class="task-header">
+                            <strong>#${t.id} ${t.task_name}</strong>
+                            <span class="badge ${statusClass}">${t.status}</span>
+                        </div>
+
+                        <div class="progress-track">
+                            <div class="progress-fill" id="prog-${t.id}" style="width: ${t.progress}%"></div>
+                        </div>
+
+                        <div class="task-footer">
+                            <span>${serverInfo} | Прогрес: <b id="pct-${t.id}">${t.progress}%</b></span>
+                            ${['processing', 'queued'].includes(t.status) ? `<button class="btn btn-danger" onclick="cancelTask(${t.id})">Скасувати</button>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                if (t.status === 'processing') {
+                    trackProgress(t.id);
+                }
+            });
+
+            list.innerHTML = html;
+        } catch (e) {}
     }
 
     async function cancelTask(taskId) {
+        if (activeStreams[taskId]) {
+            try { activeStreams[taskId].close(); } catch(e) {}
+            delete activeStreams[taskId];
+        }
         await fetch(`/api/cancel/${taskId}`, {method: 'POST'});
         loadHistory();
     }
