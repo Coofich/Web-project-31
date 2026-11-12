@@ -10,8 +10,8 @@ const httpsOptions = {
 };
 
 const proxy = httpProxy.createProxyServer({
-    proxyTimeout: 3000,
-    timeout: 3000
+    proxyTimeout: 60000,
+    timeout: 60000
 });
 
 let servers = [];
@@ -27,7 +27,7 @@ function spawnNewServer() {
     setTimeout(() => {
         servers.push({ port, worker });
         console.log(`[Balancer] Server on port ${port} is ready. Total: ${servers.length}`);
-    }, 1200);
+    }, 800);
 }
 
 function cleanup() {
@@ -50,7 +50,7 @@ setInterval(() => {
             spawnNewServer();
         }
     });
-}, 5000);
+}, 2000);
 
 function getTargetServer(req, callback) {
     if (req.method === 'POST' && req.url === '/api/task') {
@@ -123,7 +123,9 @@ function handleRequest(req, res) {
         return res.end(JSON.stringify({ error: "Вузли кластера ініціалізуються. Зачекайте 1 секунду." }));
     }
 
+    req.pause();
     getTargetServer(req, (targetServer) => {
+        req.resume();
         if (!targetServer) {
             res.writeHead(503, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Немає доступних серверів" }));

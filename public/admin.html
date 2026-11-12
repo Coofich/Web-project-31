@@ -334,16 +334,20 @@
             const tbody = document.getElementById('tasksTableBody');
             if (data.tasks && data.tasks.length > 0) {
                 tbody.innerHTML = data.tasks.map(t => {
-                    const badgeClass = t.status === 'processing' ? 'badge-processing' : 'badge-queued';
-                    const serverText = t.server_port ? `localhost:${t.server_port}` : 'Черга';
+                    const isQueued = t.status === 'queued';
+                    const badgeClass = isQueued ? 'badge-queued' : 'badge-processing';
+                    const statusText = isQueued ? 'У черзі' : 'В обробці';
+                    const serverText = t.server_port ? `localhost:${t.server_port}` : '<span style="color: var(--warning); font-weight: 600;">Очікує вільний вузол</span>';
+                    const progressText = isQueued ? '<span style="color: var(--muted);">0% (в черзі)</span>' : `<b>${t.progress}%</b>`;
+                    const rowBg = isQueued ? 'background: rgba(210, 153, 34, 0.08);' : '';
                     return `
-                        <tr>
+                        <tr style="${rowBg}">
                             <td>#${t.id}</td>
                             <td>${t.username || 'user #' + t.user_id}</td>
                             <td>${t.task_name}</td>
-                            <td><span class="${badgeClass}">${t.status}</span></td>
+                            <td><span class="${badgeClass}">${statusText}</span></td>
                             <td style="font-family: monospace;">${serverText}</td>
-                            <td><b>${t.progress}%</b></td>
+                            <td>${progressText}</td>
                         </tr>
                     `;
                 }).join('');

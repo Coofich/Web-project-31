@@ -119,7 +119,7 @@ app.post('/api/task', (req, res) => {
 
 async function processTask(taskId, complexity, filterType) {
     const weight = FILTER_WEIGHTS[filterType] || 1.0;
-    const stepDelay = Math.round(complexity * 40 * weight);
+    const stepDelay = Math.round(complexity * 18 * weight);
 
     for (let i = 1; i <= 10; i++) {
         if (cancelledTasks.has(taskId)) {
@@ -173,8 +173,8 @@ function checkQueue() {
     );
 }
 
-setInterval(checkQueue, 2000);
-setTimeout(checkQueue, 1000);
+setInterval(checkQueue, 1000);
+setTimeout(checkQueue, 400);
 
 app.get('/api/progress/:taskId', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -195,7 +195,7 @@ app.get('/api/progress/:taskId', (req, res) => {
                 }
             }
         );
-    }, 1200);
+    }, 600);
 
     req.on('close', () => clearInterval(interval));
 });

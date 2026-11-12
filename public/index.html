@@ -521,7 +521,7 @@
             }
 
             await loadHistory();
-            if (data.task_id) {
+            if (data.task_id && !data.queued) {
                 trackProgress(data.task_id);
             }
         } catch (e) {
@@ -537,6 +537,7 @@
 
     function trackProgress(taskId) {
         if (activeStreams[taskId]) return;
+        if (Object.keys(activeStreams).length >= 2) return;
 
         const source = new EventSource(`/api/progress/${taskId}`);
         activeStreams[taskId] = source;
@@ -603,12 +604,20 @@
                     </div>
                 `;
 
-                if (t.status === 'processing') {
-                    trackProgress(t.id);
+                if (['completed', 'cancelled', 'error'].includes(t.status) && activeStreams[t.id]) {
+                    try { activeStreams[t.id].close(); } catch(e) {}
+                    delete activeStreams[t.id];
                 }
             });
 
             list.innerHTML = html;
+
+            if (Object.keys(activeStreams).length < 2) {
+                const nextTrack = tasks.find(t => t.status === 'processing' && !activeStreams[t.id]);
+                if (nextTrack) {
+                    trackProgress(nextTrack.id);
+                }
+            }
         } catch (e) {}
     }
 
@@ -622,7 +631,7 @@
     }
 
     checkAuth();
-    setInterval(loadHistory, 2000);
+    setInterval(loadHistory, 1200);
 </script>
 
 </body>
